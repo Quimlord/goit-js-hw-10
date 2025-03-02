@@ -1,95 +1,113 @@
-// Описаний в документації
 import flatpickr from 'flatpickr';
-// Додатковий імпорт стилів
 import 'flatpickr/dist/flatpickr.min.css';
-
-//=======================================
-
-// Описаний у документації
 import iziToast from 'izitoast';
-// Додатковий імпорт стилів
 import 'izitoast/dist/css/iziToast.min.css';
 
-//=======================================
+const dateInput = document.getElementById('datetime-picker');
+const startBtn = document.querySelector('[data-start]');
+const timeElements = {
+  daysEl: document.querySelector('[data-days]'),
+  hoursEl: document.querySelector('[data-hours]'),
+  minutesEl: document.querySelector('[data-minutes]'),
+  secondsEl: document.querySelector('[data-seconds]'),
+};
 
-let userSelectedDate;
+let userDate;
+let currentInterval;
+startBtn.disabled = true; // Відключаємо кнопку при завантаженні
 
-const startButton = document.querySelector('button');
-startButton.disabled = true;
-const day = document.querySelector('.value[data-days]');
-const hour = document.querySelector('.value[data-hours]');
-const min = document.querySelector('.value[data-minutes]');
-const sec = document.querySelector('.value[data-seconds]');
-
-const options = {
+const flatpickrOptions = {
   enableTime: true,
   time_24hr: true,
   defaultDate: new Date(),
   minuteIncrement: 1,
+  position: 'below left',
+  positionElement: dateInput,
+  locale: {
+    weekdays: {
+      shorthand: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+      longhand: [
+        'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+      ],
+    },
+  },
   onClose(selectedDates) {
-    if (Date.now() > selectedDates[0]) {
-      iziToast.error({
-        title: 'Error',
-        message: 'Please choose a date in the future',
-        position: 'topRight',
-      });
-      startButton.disabled = true;
-      return;
-    }
-    startButton.disabled = false;
-    userSelectedDate = selectedDates[0];
+    userDate = selectedDates[0];
+    checkDate(userDate);
+    updateTimerDisplay();
   },
 };
 
-flatpickr('#datetime-picker', options);
+const timeUnits = {
+  days: 1000 * 60 * 60 * 24,
+  hours: 1000 * 60 * 60,
+  minutes: 1000 * 60,
+  seconds: 1000,
+};
 
-startButton.addEventListener('click', () => {
-  let timerValue = convertMs(userSelectedDate - Date.now());
-  startButton.disabled = true;
-  changeTimeMarkup(timerValue);
-  const intervalId = setInterval(() => {
-    timerValue = convertMs(userSelectedDate - Date.now());
+startBtn.addEventListener('click', startTimer);
+flatpickr(dateInput, flatpickrOptions);
 
-    changeTimeMarkup(timerValue);
-    if (
-      timerValue.seconds === 0 &&
-      timerValue.minutes === 0 &&
-      timerValue.hours === 0 &&
-      timerValue.days === 0
-    ) {
-      console.log('Звуки айфонівського будильника');
-      clearInterval(intervalId);
-    }
-  }, 1000);
-});
-
-function convertMs(ms) {
-  // Number of milliseconds per unit of time
-  const second = 1000;
-  const minute = second * 60;
-  const hour = minute * 60;
-  const day = hour * 24;
-
-  // Remaining days
-  const days = Math.floor(ms / day);
-  // Remaining hours
-  const hours = Math.floor((ms % day) / hour);
-  // Remaining minutes
-  const minutes = Math.floor(((ms % day) % hour) / minute);
-  // Remaining seconds
-  const seconds = Math.floor((((ms % day) % hour) % minute) / second);
-
-  return { days, hours, minutes, seconds };
+function showMessage() {
+  iziToast.error({
+    position: 'topRight',
+    title: 'Помилка',
+    message: 'Оберіть дату в майбутньому',
+    backgroundColor: '#EF4040',
+  });
 }
 
-function changeTimeMarkup(timerValue) {
-  day.textContent = addLeadingZero(timerValue.days);
-  hour.textContent = addLeadingZero(timerValue.hours);
-  min.textContent = addLeadingZero(timerValue.minutes);
-  sec.textContent = addLeadingZero(timerValue.seconds);
+function checkDate(date) {
+  const now = new Date().getTime();
+  const selectedTime = date.getTime();
+
+  if (selectedTime > now) {
+    startBtn.disabled = false;
+    return true;
+  } else {
+    showMessage();
+    startBtn.disabled = true;
+    return false;
+  }
 }
 
-function addLeadingZero(value) {
-  const stringNum = String(value);
-  return stringNum.padStart(2, '0');
+function startTimer() {
+  if (!checkDate(userDate)) return;
+
+  clearInterval(currentInterval);
+  updateTimerDisplay();
+
+  currentInterval = setInterval(() => updateTimerDisplay(), 1000);
+
+  dateInput.disabled = true;
+  startBtn.disabled = true;
+}
+
+function updateTimerDisplay() {
+  let totalLeft = userDate.getTime() - new Date().getTime();
+
+  if (totalLeft <= 0) {
+    stopTimer();
+    return;
+  }
+
+  for (let key in timeUnits) {
+    const value = Math.floor(totalLeft / timeUnits[key])
+      .toString()
+      .padStart(2, '0');
+
+    timeElements[key + 'El'].textContent = value;
+    totalLeft %= timeUnits[key];
+  }
+}
+
+function stopTimer() {
+  clearInterval(currentInterval);
+  dateInput.disabled = false;
 }
